@@ -1,0 +1,48 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: #f9fafb;
+  color: #111827;
+  transition-property: color, background-color;
+  transition-duration: 300ms;
+}
+
+/* High Contrast Mode */
+.high-contrast body {
+  background-color: #000000;
+  color: #f59e0b;
+}
+
+.high-contrast .bg-white {
+  background-color: #111827;
+  color: #f59e0b;
+  border: 1px solid #f59e0b;
+}
+
+.high-contrast .bg-gray-50, 
+.high-contrast .bg-gray-100 {
+  background-color: #000000;
+}
+
+.high-contrast .text-gray-600,
+.high-contrast .text-gray-500,
+.high-contrast .text-gray-700,
+.high-contrast .text-gray-800 {
+  color: #fde68a;
+}
+
+.high-contrast .bg-primary {
+  background-color: #f59e0b;
+  color: #000000;
+  font-weight: 700;
+}
+
+.high-contrast .text-primary {
+  color: #f59e0b;
+}
+
+.high-contrast button {
+  border: 2px solid #f59e0b;
+}
