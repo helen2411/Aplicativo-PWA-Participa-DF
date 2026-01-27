@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LogIn } from 'lucide-react';
-import logo from '../assets/participa-df-logo.svg';
+import  from '../assets/participa-df-logo.svg';
 
 export const Login = () => {
   const [email, setEmail] = useState('');
