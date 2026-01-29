@@ -22,9 +22,9 @@ export const AccountDirect = () => {
       <button
         onClick={() => {
           if (isTalkBackEnabled) speak('Voltando para a tela inicial');
-          navigate('/');
+          navigate('/home');
         }}
-        className="flex items-center text-gray-600 hover:text-primary transition-colors"
+        className="flex items-center text-gray-600 hover:text-primary transition-colors !border-none no-border"
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Voltar

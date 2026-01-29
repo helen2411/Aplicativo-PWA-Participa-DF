@@ -5,8 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>aplicativo-pwa-participa-df</title>
+    <style>
+      /* FORCE VLIBRAS POSITIONING - INLINE TO BYPASS CACHE */
+      [vw-access-button] {
+        bottom: 65px !important;
+        right: 10px !important;
+        margin-bottom: 0 !important;
+        z-index: 40 !important; /* Ensure it's above other elements but below modals if needed */
+      }
+      /* Ensure widget wrapper doesn't interfere */
+      .vw-plugin-wrapper {
+        bottom: 16px !important;
+        right: 16px !important;
+      }
+    </style>
   </head>
-  <body>
+  <body style="background-color: #1351B4; color: #ffffff;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <div vw class="enabled">

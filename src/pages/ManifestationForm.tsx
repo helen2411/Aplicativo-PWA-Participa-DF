@@ -5,9 +5,14 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useSpeechToText } from '../hooks/useSpeechToText';
 import { useAccessibility } from '../hooks/useAccessibility';
 import { participaApi } from '../services/participaApi';
+import { CameraCapture } from '../components/CameraCapture';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { db } from '../services/db';
 
 type GPSLocation = { lat: number; lng: number; source: 'geolocation' | 'exif' | 'manual' };
 type MediaType = 'text' | 'audio' | 'image' | 'video';
+
+import type { ManifestRecord } from '../types';
 
 export const ManifestationForm = () => {
   const navigate = useNavigate();
@@ -19,6 +24,8 @@ export const ManifestationForm = () => {
   const [protocol, setProtocol] = useState<string | null>(null);
   const [visibleTypes, setVisibleTypes] = useState<Set<MediaType>>(new Set<MediaType>([primaryType]));
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'image' | 'video'>('image');
 
   const [text, setText] = useState('');
   const { isRecording, audioUrl, startRecording, stopRecording, setAudioUrl } = useAudioRecorder();
@@ -41,19 +48,62 @@ export const ManifestationForm = () => {
   const [izaSummary, setIzaSummary] = useState<string | null>(null);
   const [izaCategory, setIzaCategory] = useState<string | null>(null);
   const [izaError, setIzaError] = useState<string | null>(null);
+  const [showLocationConfirm, setShowLocationConfirm] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    type: 'image' | 'video';
+    index: number;
+  } | null>(null);
   const imageAttachRef = useRef<HTMLInputElement>(null);
   const imageCameraRef = useRef<HTMLInputElement>(null);
   const videoAttachRef = useRef<HTMLInputElement>(null);
   const videoCameraRef = useRef<HTMLInputElement>(null);
-  const imageCameraVideoRef = useRef<HTMLVideoElement>(null);
-  const videoCameraVideoRef = useRef<HTMLVideoElement>(null);
-  const [imageCameraActive, setImageCameraActive] = useState(false);
-  const [videoCameraActive, setVideoCameraActive] = useState(false);
-  const [imageCameraStream, setImageCameraStream] = useState<MediaStream | null>(null);
-  const [videoCameraStream, setVideoCameraStream] = useState<MediaStream | null>(null);
-  const [videoRecorder, setVideoRecorder] = useState<MediaRecorder | null>(null);
-  const [videoRecording, setVideoRecording] = useState(false);
-  const Section = ({ type }: { type: MediaType }) => {
+  // Track active blob URLs to revoke them only on unmount or manual removal
+  const previewUrlsRef = useRef<string[]>([]);
+
+  // Update tracked URLs whenever previews change
+  useEffect(() => {
+    previewUrlsRef.current = [...imagePreviews, ...videoPreviews];
+  }, [imagePreviews, videoPreviews]);
+
+  // Cleanup all blobs only when component unmounts
+  useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
+
+  const removeVideo = (index: number) => {
+    setDeleteConfirmation({ isOpen: true, type: 'video', index });
+  };
+
+  const removeImage = (index: number) => {
+    setDeleteConfirmation({ isOpen: true, type: 'image', index });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteConfirmation) return;
+    const { type, index } = deleteConfirmation;
+
+    if (type === 'video') {
+      const urlToRemove = videoPreviews[index];
+      if (urlToRemove) URL.revokeObjectURL(urlToRemove);
+
+      setVideos(prev => prev.filter((_, i) => i !== index));
+      setVideoPreviews(prev => prev.filter((_, i) => i !== index));
+      if (isTalkBackEnabled) speak('Vídeo excluído.');
+    } else {
+      const urlToRemove = imagePreviews[index];
+      if (urlToRemove) URL.revokeObjectURL(urlToRemove);
+
+      setImages(prev => prev.filter((_, i) => i !== index));
+      setImagePreviews(prev => prev.filter((_, i) => i !== index));
+      if (isTalkBackEnabled) speak('Foto excluída.');
+    }
+    setDeleteConfirmation(null);
+  };
+
+  const renderSection = (type: MediaType) => {
     if (type === 'text') {
       return (
         <div>
@@ -64,9 +114,15 @@ export const ManifestationForm = () => {
           <div className="relative">
             <textarea
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                e.target.setCustomValidity('');
+              }}
+              onFocus={() => { if (isTalkBackEnabled) speak('Descrição da manifestação, obrigatório'); }}
+              onInvalid={(e) => (e.target as HTMLTextAreaElement).setCustomValidity('Por favor, descreva sua manifestação.')}
               placeholder="Descreva sua manifestação aqui..."
-              className="w-full h-32 p-4 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              className="w-full h-32 p-4 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-gray-900"
+              required
             />
             <button
               type="button"
@@ -79,13 +135,12 @@ export const ManifestationForm = () => {
                   if (isTalkBackEnabled) speak("Digitação por voz ativada. Pode falar.");
                 }
               }}
-              className={`absolute bottom-4 right-4 p-3 rounded-full shadow-lg transition-all flex items-center gap-2 ${
+              className={`absolute bottom-4 right-4 w-10 h-10 rounded-full shadow-lg transition-all flex items-center justify-center ${
                 isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-100 text-primary hover:bg-blue-200'
               }`}
               title="Descrever por voz (IA)"
             >
               {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              <span className="text-sm font-bold hidden md:inline">{isListening ? 'Ouvindo...' : 'Falar'}</span>
             </button>
           </div>
           <div className="mt-3 space-y-3">
@@ -123,7 +178,7 @@ export const ManifestationForm = () => {
                 }
                 setIzaLoading(false);
               }}
-              className="px-3 py-2 rounded-lg bg-blue-100 text-primary hover:bg-blue-200 transition-colors font-semibold"
+              className="px-3 py-2 rounded-lg bg-blue-100 text-[#1351B4] hover:bg-blue-200 transition-colors font-semibold"
             >
               Assistente IZA
             </button>
@@ -143,7 +198,8 @@ export const ManifestationForm = () => {
             <textarea
               value={audioDescription}
               onChange={(e) => setAudioDescription(e.target.value)}
-              className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              onFocus={() => { if (isTalkBackEnabled) speak('Descrição do áudio, acessibilidade'); }}
+              className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900"
               placeholder="Descreva brevemente o conteúdo do áudio"
             />
           </div>
@@ -183,7 +239,7 @@ export const ManifestationForm = () => {
                       if (isTalkBackEnabled) speak("Gravação de áudio iniciada");
                     }
                   }}
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
                     isRecording ? 'bg-red-500 animate-pulse' : 'bg-primary hover:bg-blue-600'
                   }`}
                 >
@@ -213,24 +269,13 @@ export const ManifestationForm = () => {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
               >
                 <Paperclip className="w-5 h-5 text-gray-700" />
-                <span className="text-sm font-semibold">Anexar</span>
+                <span className="text-sm font-semibold text-gray-900">Anexar</span>
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  if (videoCameraActive) return;
-                  try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
-                    setVideoCameraStream(stream);
-                    setVideoCameraActive(true);
-                    if (videoCameraVideoRef.current) {
-                      videoCameraVideoRef.current.srcObject = stream;
-                      await videoCameraVideoRef.current.play();
-                    }
-                    if (isTalkBackEnabled) speak('Câmera de vídeo iniciada.');
-                  } catch {
-                    videoCameraRef.current?.click();
-                  }
+                onClick={() => {
+                  setCameraMode('video');
+                  setShowCamera(true);
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100 text-primary hover:bg-blue-200 transition-colors"
               >
@@ -251,75 +296,24 @@ export const ManifestationForm = () => {
               type="file"
               accept="video/*"
               capture="environment"
-              multiple
               onChange={handleVideoFiles}
               className="hidden"
             />
-            {videoCameraActive && (
-              <div className="space-y-2">
-                <video ref={videoCameraVideoRef} className="w-full rounded-lg bg-black" />
-                <div className="flex items-center gap-2">
-                  {!videoRecording ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!videoCameraStream) return;
-                        const rec = new MediaRecorder(videoCameraStream);
-                        const chunks: Blob[] = [];
-                        rec.ondataavailable = (e) => {
-                          if (e.data && e.data.size > 0) chunks.push(e.data);
-                        };
-                        rec.onstop = () => {
-                          const blob = new Blob(chunks, { type: 'video/webm' });
-                          setVideos(prev => [...prev, new File([blob], `camera-${Date.now()}.webm`, { type: 'video/webm' })]);
-                          setVideoPreviews(prev => [...prev, URL.createObjectURL(blob)]);
-                        };
-                        setVideoRecorder(rec);
-                        rec.start();
-                        setVideoRecording(true);
-                      }}
-                      className="px-3 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600"
-                    >
-                      Iniciar gravação
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        videoRecorder?.stop();
-                        setVideoRecording(false);
-                        if (isTalkBackEnabled) speak('Gravação de vídeo finalizada.');
-                      }}
-                      className="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
-                    >
-                      Parar gravação
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (videoRecorder && videoRecorder.state === 'recording') {
-                        videoRecorder.stop();
-                      }
-                      setVideoRecording(false);
-                      if (videoCameraStream) {
-                        videoCameraStream.getTracks().forEach(t => t.stop());
-                      }
-                      setVideoCameraStream(null);
-                      setVideoCameraActive(false);
-                      if (isTalkBackEnabled) speak('Câmera encerrada.');
-                    }}
-                    className="px-3 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
-                  >
-                    Fechar câmera
-                  </button>
-                </div>
-              </div>
-            )}
             {videoPreviews.length > 0 && (
               <div className="grid grid-cols-2 gap-3 mt-3">
                 {videoPreviews.map((src, i) => (
-                  <video key={i} src={src} controls className="rounded-lg max-h-40" />
+                  <div key={i} className="relative">
+                    <video src={src} controls className="rounded-lg max-h-40 w-full bg-black" />
+                    <button
+                      type="button"
+                      onClick={() => removeVideo(i)}
+                      className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-colors"
+                      title="Excluir vídeo"
+                      aria-label="Excluir vídeo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -327,9 +321,10 @@ export const ManifestationForm = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Descrição do vídeo (acessibilidade)</label>
               <textarea
                 value={videoDescription}
-                onChange={(e) => setVideoDescription(e.target.value)}
-                className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                placeholder="Descreva brevemente o conteúdo do vídeo"
+              onChange={(e) => setVideoDescription(e.target.value)}
+              onFocus={() => { if (isTalkBackEnabled) speak('Descrição do vídeo, acessibilidade'); }}
+              className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900 bg-white"
+              placeholder="Descreva brevemente o conteúdo do vídeo"
               />
             </div>
           </div>
@@ -350,23 +345,13 @@ export const ManifestationForm = () => {
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
             >
               <Paperclip className="w-5 h-5 text-gray-700" />
-              <span className="text-sm font-semibold">Anexar</span>
+              <span className="text-sm font-semibold text-gray-900">Anexar</span>
             </button>
             <button
               type="button"
-              onClick={async () => {
-                if (imageCameraActive) return;
-                try {
-                  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                  setImageCameraStream(stream);
-                  setImageCameraActive(true);
-                  if (imageCameraVideoRef.current) {
-                    imageCameraVideoRef.current.srcObject = stream;
-                    await imageCameraVideoRef.current.play();
-                  }
-                } catch {
-                  imageCameraRef.current?.click();
-                }
+              onClick={() => {
+                setCameraMode('image');
+                setShowCamera(true);
               }}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100 text-primary hover:bg-blue-200 transition-colors"
             >
@@ -383,60 +368,29 @@ export const ManifestationForm = () => {
             className="hidden"
           />
           <input
-            ref={imageCameraRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={handleImageFiles}
-            className="hidden"
-          />
-          {imageCameraActive && (
-            <div className="space-y-2">
-              <video ref={imageCameraVideoRef} className="w-full rounded-lg bg-black" />
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!imageCameraVideoRef.current) return;
-                    const videoEl = imageCameraVideoRef.current;
-                    const canvas = document.createElement('canvas');
-                    canvas.width = videoEl.videoWidth || 1280;
-                    canvas.height = videoEl.videoHeight || 720;
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) return;
-                    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-                    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-                    if (blob) {
-                      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                      setImages(prev => [...prev, file]);
-                      setImagePreviews(prev => [...prev, URL.createObjectURL(blob)]);
-                    }
-                  }}
-                  className="px-3 py-2 rounded-lg bg-primary text-white hover:bg-blue-700"
-                >
-                  Capturar foto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (imageCameraStream) {
-                      imageCameraStream.getTracks().forEach(t => t.stop());
-                    }
-                    setImageCameraStream(null);
-                    setImageCameraActive(false);
-                  }}
-                  className="px-3 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
-                >
-                  Fechar câmera
-                </button>
-              </div>
-            </div>
-          )}
+              ref={imageCameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageFiles}
+              className="hidden"
+            />
+
           {imagePreviews.length > 0 && (
             <div className="grid grid-cols-3 gap-3 mt-3">
               {imagePreviews.map((src, i) => (
-                <img key={i} src={src} alt={`Foto ${i+1}`} className="rounded-lg max-h-32 object-contain" />
+                <div key={i} className="relative">
+                  <img src={src} alt={`Foto ${i+1}`} className="rounded-lg h-32 w-full object-cover bg-gray-100" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-colors"
+                    title="Excluir foto"
+                    aria-label="Excluir foto"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -445,7 +399,8 @@ export const ManifestationForm = () => {
             <textarea
               value={imageDescription}
               onChange={(e) => setImageDescription(e.target.value)}
-              className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              onFocus={() => { if (isTalkBackEnabled) speak('Descrição das imagens, acessibilidade'); }}
+              className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900"
               placeholder="Descreva brevemente o conteúdo das imagens anexadas"
             />
           </div>
@@ -484,10 +439,27 @@ export const ManifestationForm = () => {
     if (isTalkBackEnabled) speak(`Removido ${t === 'audio' ? 'áudio' : t === 'video' ? 'vídeo' : t === 'image' ? 'foto' : 'texto'}`);
   };
 
+  const handleCameraCapture = async (file: File) => {
+    if (cameraMode === 'image') {
+      setImages(prev => [...prev, file]);
+      setImagePreviews(prev => [...prev, URL.createObjectURL(file)]);
+      setLocationError(null);
+      const gps = await extractGPSFromImage(file);
+      if (gps) {
+        setLocation({ lat: gps.lat, lng: gps.lng, source: 'exif' });
+      }
+    } else {
+      setVideos(prev => [...prev, file]);
+      setVideoPreviews(prev => [...prev, URL.createObjectURL(file)]);
+    }
+  };
+
   const handleImageFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setImages(files);
-    setImagePreviews(files.map(f => URL.createObjectURL(f)));
+    if (files.length === 0) return;
+
+    setImages(prev => [...prev, ...files]);
+    setImagePreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
     setLocationError(null);
     if (files[0]) {
       const gps = await extractGPSFromImage(files[0]);
@@ -495,29 +467,19 @@ export const ManifestationForm = () => {
         setLocation({ lat: gps.lat, lng: gps.lng, source: 'exif' });
       }
     }
+    e.target.value = '';
   };
 
   const handleVideoFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setVideos(files);
-    setVideoPreviews(files.map(f => URL.createObjectURL(f)));
+    if (files.length === 0) return;
+
+    setVideos(prev => [...prev, ...files]);
+    setVideoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+    e.target.value = '';
   };
 
-  useEffect(() => {
-    return () => {
-      try {
-        imagePreviews.forEach((u) => URL.revokeObjectURL(u));
-      } catch {}
-    };
-  }, [imagePreviews]);
 
-  useEffect(() => {
-    return () => {
-      try {
-        videoPreviews.forEach((u) => URL.revokeObjectURL(u));
-      } catch {}
-    };
-  }, [videoPreviews]);
 
   const detectLocation = () => {
     setLocationError(null);
@@ -533,56 +495,101 @@ export const ManifestationForm = () => {
         if (isTalkBackEnabled) speak('Localização detectada.');
       },
       (err) => {
-        setLocationError(err.message || 'Falha ao obter localização.');
-        if (isTalkBackEnabled) speak('Falha ao obter localização.');
+        let msg = 'Falha ao obter localização.';
+        switch (err.code) {
+          case 1: // PERMISSION_DENIED
+            msg = 'Permissão de localização negada. Verifique se o acesso à localização está permitido no seu navegador.';
+            break;
+          case 2: // POSITION_UNAVAILABLE
+            msg = 'Informações de localização indisponíveis. Verifique se o GPS está ativado.';
+            break;
+          case 3: // TIMEOUT
+            msg = 'O tempo para obter a localização esgotou. Tente novamente.';
+            break;
+          default:
+            msg = 'Ocorreu um erro desconhecido ao obter a localização. Tente digitar o endereço manualmente.';
+        }
+        setLocationError(msg);
+        if (isTalkBackEnabled) speak(msg);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newProtocol = `PDF-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000000)}`;
     setProtocol(newProtocol);
+    
+    // Save to protocol history (list of strings)
     try {
       const key = 'protocolHistory';
       const prev = JSON.parse(localStorage.getItem(key) || '[]') as string[];
       localStorage.setItem(key, JSON.stringify([newProtocol, ...prev].slice(0, 50)));
-      const mKey = 'manifestations';
-      interface ManifestRecord {
-        protocol: string;
-        when: string;
-        isAnonymous: boolean;
-        title: string;
-        text: string;
-        audioUrl: string | null;
-        audioDescription: string;
-        imagesCount: number;
-        imageDescription: string;
-        videosCount: number;
-        videoDescription: string;
-        location: GPSLocation | null;
-        address: string | null;
+    } catch (err) {
+      console.error('Erro ao salvar histórico de protocolos:', err);
+    }
+
+    let audioBlob: Blob | null = null;
+    if (audioUrl) {
+      try {
+        const r = await fetch(audioUrl);
+        audioBlob = await r.blob();
+      } catch (e) {
+        console.error("Failed to fetch audio blob", e);
       }
-      const mPrev = JSON.parse(localStorage.getItem(mKey) || '[]') as ManifestRecord[];
-      const manifest: ManifestRecord = {
-        protocol: newProtocol,
-        when: new Date().toISOString(),
-        isAnonymous,
-        title,
-        text,
-        audioUrl,
-        audioDescription,
-        imagesCount: images.length,
-        imageDescription,
-        videosCount: videos.length,
-        videoDescription,
-        location,
-        address: address || null,
-      };
-      localStorage.setItem(mKey, JSON.stringify([manifest, ...mPrev].slice(0, 200)));
-    } catch {
-      // ignore storage errors
+    }
+
+    const manifest: ManifestRecord = {
+      protocol: newProtocol,
+      when: new Date().toISOString(),
+      isAnonymous,
+      title,
+      text,
+      audioUrl,
+      audioDescription,
+      imagesCount: images.length,
+      imageDescription,
+      videosCount: videos.length,
+      videoDescription,
+      location,
+      address: address || null,
+      imageFiles: images,
+      videoFiles: videos,
+      audioFile: audioBlob
+    };
+
+    // Save full manifestation details to DB
+    try {
+      await db.saveManifestation(manifest);
+    } catch (err) {
+      console.error('Erro ao salvar detalhes da manifestação no DB:', err);
+    }
+
+    // Save full manifestation details to localStorage (legacy/fallback, excluding heavy files)
+    try {
+      const mKey = 'manifestations';
+      let mPrev: ManifestRecord[] = [];
+      try {
+        const stored = localStorage.getItem(mKey);
+        if (stored) {
+          mPrev = JSON.parse(stored);
+          if (!Array.isArray(mPrev)) mPrev = [];
+        }
+      } catch {
+        mPrev = [];
+      }
+
+      // Create a copy without the files for localStorage to avoid quota issues
+      const manifestForStorage = { ...manifest };
+      delete manifestForStorage.imageFiles;
+      delete manifestForStorage.videoFiles;
+      delete manifestForStorage.audioFile;
+      
+      localStorage.setItem(mKey, JSON.stringify([manifestForStorage, ...mPrev].slice(0, 200)));
+    } catch (err) {
+      console.error('Erro ao salvar detalhes da manifestação:', err);
+      // Try to clean up storage if full?
     }
     try {
       const payload = {
@@ -628,7 +635,7 @@ export const ManifestationForm = () => {
         <button 
           onClick={() => {
             if (isTalkBackEnabled) speak("Voltando para a tela inicial");
-            navigate('/');
+            navigate('/home');
           }}
           className="w-full py-3 px-6 bg-primary text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
         >
@@ -643,9 +650,9 @@ export const ManifestationForm = () => {
       <button 
         onClick={() => {
             if (isTalkBackEnabled) speak("Voltando para a tela inicial");
-            navigate('/');
+            navigate('/home');
         }}
-        className="flex items-center text-gray-600 hover:text-primary transition-colors"
+        className="flex items-center text-gray-600 hover:text-primary transition-colors !border-none no-border"
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Voltar
@@ -673,7 +680,7 @@ export const ManifestationForm = () => {
                 return next;
               });
             }}
-            className="px-3 py-2 rounded-lg bg-blue-100 text-primary hover:bg-blue-200 transition-colors font-semibold"
+            className="px-3 py-2 rounded-lg bg-blue-100 text-[#1351B4] hover:bg-blue-200 transition-colors font-semibold"
             aria-expanded={showAddMenu}
           >
             Incluir mais
@@ -687,7 +694,7 @@ export const ManifestationForm = () => {
                     key={t}
                     type="button"
                     onClick={() => addType(t)}
-                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 text-left"
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 text-left text-gray-800 menu-item-hover !border-none"
                   >
                     {t === 'video' && <Video className="w-5 h-5 text-green-600" />}
                     {t === 'image' && <Image className="w-5 h-5 text-pink-600" />}
@@ -708,7 +715,7 @@ export const ManifestationForm = () => {
         {(['video','image','text','audio'] as MediaType[])
           .filter(t => t !== primaryType && visibleTypes.has(t))
           .map(t => (
-            <div key={t} className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 border border-gray-200">
+            <div key={t} className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 border border-gray-200 text-gray-800">
               {t === 'video' && <Video className="w-4 h-4 text-green-600" />}
               {t === 'image' && <Image className="w-4 h-4 text-pink-600" />}
               {t === 'text' && <FileText className="w-4 h-4 text-orange-600" />}
@@ -729,14 +736,19 @@ export const ManifestationForm = () => {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Título da denúncia</label>
+          <label htmlFor="title-input" className="block text-sm font-medium text-gray-700">Título da denúncia</label>
           <input
+            id="title-input"
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              e.target.setCustomValidity('');
+            }}
             onFocus={() => { if (isTalkBackEnabled) speak('Título da denúncia, obrigatório'); }}
+            onInvalid={(e) => (e.target as HTMLInputElement).setCustomValidity('Por favor, preencha este campo.')}
             placeholder="Ex.: Buraco na via principal da quadra 210"
-            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900"
             required
             aria-label="Título da denúncia"
           />
@@ -753,33 +765,36 @@ export const ManifestationForm = () => {
             ordered.push(...afterPrimary);
             if (primaryType === 'text') {
               const rest: MediaType[] = NON_TEXT_TYPES.filter((t) => visibleTypes.has(t));
-              return (<>{(['text', ...rest] as MediaType[]).map((t) => <Section key={t} type={t} />)}</>);
+              return (<>{(['text', ...rest] as MediaType[]).map((t) => <div key={t}>{renderSection(t)}</div>)}</>);
             }
-            return (<>{ordered.map((t) => <Section key={t} type={t} />)}</>);
+            return (<>{ordered.map((t) => <div key={t}>{renderSection(t)}</div>)}</>);
           })()}
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-          <div className="flex items-center gap-2">
+          <label htmlFor="address-input" className="flex items-center gap-2 cursor-pointer">
             <MapPin className="w-5 h-5 text-gray-600" />
             <span className="font-semibold text-gray-800">Localização do Problema</span>
-          </div>
+          </label>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => { if (isTalkBackEnabled) speak('Detectando sua localização.'); detectLocation(); }}
-              className="px-3 py-2 rounded-lg bg-blue-100 text-primary hover:bg-blue-200 transition-colors"
+              onClick={() => { if (isTalkBackEnabled) speak('Detectando sua localização.'); setShowLocationConfirm(true); }}
+              className="px-3 py-2 rounded-lg bg-blue-100 text-[#1351B4] hover:bg-blue-200 transition-colors"
             >
               Detectar minha localização
             </button>
             <span className="text-xs text-gray-500">ou informe manualmente</span>
           </div>
           <input
+            id="address-input"
             type="text"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
+            onFocus={() => { if (isTalkBackEnabled) speak('Localização do problema, opcional'); }}
             placeholder="Ex.: Samambaia, Qd 210, próximo à escola..."
-            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900"
+            aria-label="Descrição da localização"
           />
           {location && (
             <div className="text-sm text-gray-700">
@@ -795,7 +810,18 @@ export const ManifestationForm = () => {
               </a>
             </div>
           )}
-          {locationError && <p className="text-sm text-red-600">{locationError}</p>}
+          {locationError && (
+            <div className="mt-2">
+              <p className="text-sm text-red-600 mb-1">{locationError}</p>
+              <button
+                type="button"
+                onClick={() => setShowLocationConfirm(true)}
+                className="text-sm font-semibold text-primary underline"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100">
@@ -823,6 +849,41 @@ export const ManifestationForm = () => {
           Enviar Manifestação
         </button>
       </form>
+      <CameraCapture
+        isOpen={showCamera}
+        mode={cameraMode}
+        onCapture={handleCameraCapture}
+        onClose={() => setShowCamera(false)}
+      />
+      {showLocationConfirm && (
+          <ConfirmModal
+            isOpen={showLocationConfirm}
+            title="Ativar Localização?"
+            message="Para identificar o local do problema, precisamos acessar sua localização. Deseja permitir?"
+            confirmLabel="Sim, ativar"
+            cancelLabel="Não"
+            onConfirm={() => {
+              setShowLocationConfirm(false);
+              detectLocation();
+            }}
+            onCancel={() => {
+              setShowLocationConfirm(false);
+              if (isTalkBackEnabled) speak('Permissão negada pelo usuário.');
+            }}
+          />
+        )}
+
+        {deleteConfirmation && (
+          <ConfirmModal
+            isOpen={deleteConfirmation.isOpen}
+            title={`Excluir ${deleteConfirmation.type === 'video' ? 'vídeo' : 'foto'}?`}
+            message={`Tem certeza que deseja excluir est${deleteConfirmation.type === 'video' ? 'e' : 'a'} ${deleteConfirmation.type === 'video' ? 'vídeo' : 'foto'}?`}
+            confirmLabel="Excluir"
+            cancelLabel="Cancelar"
+            onConfirm={handleDeleteConfirm}
+            onCancel={() => setDeleteConfirmation(null)}
+          />
+        )}
     </div>
   );
 };

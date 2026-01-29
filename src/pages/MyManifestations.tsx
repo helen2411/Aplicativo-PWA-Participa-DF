@@ -1,25 +1,91 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, Trash2 } from 'lucide-react';
 import { useAccessibility } from '../hooks/useAccessibility';
+import { ConfirmModal } from '../components/ConfirmModal';
+import type { ManifestRecord } from '../types';
 
 export const MyManifestations = () => {
   const navigate = useNavigate();
   const { isTalkBackEnabled, speak } = useAccessibility();
-  let protocols: string[] = [];
-  try {
-    protocols = JSON.parse(localStorage.getItem('protocolHistory') || '[]');
-  } catch {
-    protocols = [];
-  }
+  const [protocols, setProtocols] = useState<string[]>([]);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Load and cleanup protocols
+    try {
+      let loadedProtocols: string[] = JSON.parse(localStorage.getItem('protocolHistory') || '[]');
+      if (!Array.isArray(loadedProtocols)) loadedProtocols = [];
+
+      // Auto-cleanup specific broken protocols as requested
+      const brokenProtocols = ['PDF-2026-169310', 'PDF-2026-384787'];
+      const hasBroken = loadedProtocols.some(p => brokenProtocols.includes(p));
+
+      if (hasBroken) {
+        loadedProtocols = loadedProtocols.filter(p => !brokenProtocols.includes(p));
+        localStorage.setItem('protocolHistory', JSON.stringify(loadedProtocols));
+        
+        // Clean details as well
+        try {
+          const mKey = 'manifestations';
+          const storedM = localStorage.getItem(mKey);
+          if (storedM) {
+            let mList = JSON.parse(storedM) as ManifestRecord[];
+            if (Array.isArray(mList)) {
+              const newMList = mList.filter(m => !brokenProtocols.includes(m.protocol));
+              localStorage.setItem(mKey, JSON.stringify(newMList));
+            }
+          }
+        } catch (e) {
+          console.error("Error cleaning manifestations details", e);
+        }
+      }
+      
+      setProtocols(loadedProtocols);
+    } catch {
+      setProtocols([]);
+    }
+  }, []);
+
+  const handleDelete = (protocolToDelete: string) => {
+    setDeleteConfirmation(protocolToDelete);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirmation) return;
+    
+    const protocolToDelete = deleteConfirmation;
+    const newProtocols = protocols.filter(p => p !== protocolToDelete);
+    setProtocols(newProtocols);
+    localStorage.setItem('protocolHistory', JSON.stringify(newProtocols));
+
+    // Also remove details if present
+    try {
+      const mKey = 'manifestations';
+      const storedM = localStorage.getItem(mKey);
+      if (storedM) {
+        let mList = JSON.parse(storedM) as ManifestRecord[];
+        if (Array.isArray(mList)) {
+          const newMList = mList.filter(m => m.protocol !== protocolToDelete);
+          localStorage.setItem(mKey, JSON.stringify(newMList));
+        }
+      }
+    } catch (e) {
+      console.error("Error removing details", e);
+    }
+
+    if (isTalkBackEnabled) speak('Protocolo removido do histórico.');
+    setDeleteConfirmation(null);
+  };
 
   return (
     <div className="space-y-6">
       <button 
         onClick={() => {
           if (isTalkBackEnabled) speak("Voltando para a tela inicial");
-          navigate('/');
+          navigate('/home');
         }}
-        className="flex items-center text-gray-600 hover:text-primary transition-colors"
+        className="flex items-center text-gray-600 hover:text-primary transition-colors !border-none no-border"
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Voltar
@@ -42,20 +108,42 @@ export const MyManifestations = () => {
                   <span className="block text-sm text-gray-500 uppercase tracking-wider">Protocolo</span>
                   <span className="font-mono font-bold text-primary">{p}</span>
                 </div>
-                <button 
-                  className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:border-primary hover:text-primary transition-colors"
-                  onClick={() => {
-                    if (isTalkBackEnabled) speak(`Abrindo detalhes do protocolo ${p}`);
-                    alert(`Em breve: detalhes do protocolo ${p}`);
-                  }}
-                >
-                  Detalhes
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 bg-white hover:border-primary hover:text-primary transition-colors"
+                    onClick={() => {
+                      if (isTalkBackEnabled) speak(`Abrindo detalhes do protocolo ${p}`);
+                      navigate(`/protocolo/${p}`);
+                    }}
+                    aria-label={`Ver detalhes do protocolo ${p}`}
+                  >
+                    Detalhes
+                  </button>
+                  <button 
+                    className="px-3 py-2 text-sm rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
+                    onClick={() => handleDelete(p)}
+                    aria-label={`Excluir protocolo ${p}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {deleteConfirmation && (
+        <ConfirmModal
+          isOpen={!!deleteConfirmation}
+          title="Excluir protocolo?"
+          message="Tem certeza que deseja excluir este protocolo do histórico? Esta ação não pode ser desfeita."
+          confirmLabel="Excluir"
+          cancelLabel="Cancelar"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirmation(null)}
+        />
+      )}
     </div>
   );
 };

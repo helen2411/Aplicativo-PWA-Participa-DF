@@ -12,13 +12,30 @@ body {
 /* High Contrast Mode */
 .high-contrast body {
   background-color: #000000;
-  color: #f59e0b;
+  color: #60a5fa;
 }
 
 .high-contrast .bg-white {
   background-color: #111827;
-  color: #f59e0b;
-  border: 1px solid #f59e0b;
+  color: #60a5fa;
+}
+
+/* Restore borders for elements that explicitly have border classes */
+.high-contrast .border-gray-50,
+.high-contrast .border-gray-100,
+.high-contrast .border-gray-200,
+.high-contrast .border-gray-300,
+.high-contrast .border-gray-400 {
+  border-color: #60a5fa !important;
+}
+
+/* Force white background for auth pages even in high contrast if needed, 
+   but ideally we want to respect user preference. 
+   However, if user complains about "black screen", we might need to be less aggressive.
+*/
+.auth-force-white {
+  background-color: #ffffff !important;
+  color: #111827 !important;
 }
 
 .high-contrast .bg-gray-50, 
@@ -30,19 +47,66 @@ body {
 .high-contrast .text-gray-500,
 .high-contrast .text-gray-700,
 .high-contrast .text-gray-800 {
-  color: #fde68a;
+  color: #bfdbfe;
 }
 
 .high-contrast .bg-primary {
-  background-color: #f59e0b;
+  background-color: #60a5fa;
   color: #000000;
   font-weight: 700;
 }
 
 .high-contrast .text-primary {
-  color: #f59e0b;
+  color: #60a5fa;
 }
 
-.high-contrast button {
-  border: 2px solid #f59e0b;
+.high-contrast button:not(.no-border) {
+  border: 2px solid #60a5fa;
+}
+
+.high-contrast .text-gray-900 {
+  color: #ffffff;
+}
+
+/* Standardize Inputs in High Contrast Mode */
+.high-contrast input,
+.high-contrast textarea,
+.high-contrast select {
+  background-color: #1f2937 !important; /* Dark Gray background */
+  color: #ffffff !important; /* White Text */
+  border: 1px solid #60a5fa !important; /* Visible Border */
+}
+
+.high-contrast input::placeholder,
+.high-contrast textarea::placeholder {
+  color: #9ca3af !important; /* Readable Placeholder */
+}
+
+/* Fix for menu items in dark mode to avoid white hover background */
+.high-contrast .menu-item-hover:hover {
+  background-color: #1f2937 !important;
+  color: #ffffff !important;
+}
+
+/* VLibras Widget Optimization - GLOBAL OVERRIDE */
+/* Applying globally to ensure it takes precedence regardless of screen size detection */
+[vw-access-button], .vw-access-button {
+  bottom: 60px !important;
+  right: 8px !important;
+  margin-bottom: 0 !important;
+}
+
+.vw-plugin-wrapper {
+  transform: scale(0.8) !important; 
+  transform-origin: right bottom !important;
+  bottom: 16px !important;
+  right: 16px !important;
+  max-width: 100vw !important;
+}
+
+/* Specific mobile adjustments if needed */
+@media (max-width: 640px) {
+  .vw-plugin-wrapper {
+    transform: scale(0.7) !important;
+  }
 }

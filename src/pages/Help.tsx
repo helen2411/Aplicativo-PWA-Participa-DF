@@ -100,9 +100,9 @@ export const Help = () => {
         <button
           onClick={() => {
             if (isTalkBackEnabled) speak('Voltando');
-            navigate(-1);
+            navigate('/home');
           }}
-          className="p-2 rounded hover:bg-white/20 transition-colors"
+          className="p-2 rounded hover:bg-white/20 transition-colors !border-none no-border"
           aria-label="Voltar"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -122,7 +122,7 @@ export const Help = () => {
             <button
               key={faq.q}
               onClick={() => handleQuickAsk(faq)}
-              className="text-left p-3 bg-white border border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-sm transition-colors text-sm"
+              className="text-left p-3 bg-white border border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-sm transition-colors text-sm text-gray-800"
             >
               {faq.q}
             </button>
@@ -153,7 +153,7 @@ export const Help = () => {
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Digite sua dúvida..."
-          className="flex-1 p-3 rounded-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50"
+          className="flex-1 p-3 rounded-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50 text-gray-800"
         />
         <button
           type="submit"

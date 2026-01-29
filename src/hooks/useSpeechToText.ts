@@ -50,8 +50,17 @@ export const useSpeechToText = (onFinalResult?: (finalText: string) => void) => 
       };
 
       recognitionInstance.onerror = (event: { error: string }) => {
-        console.error(event.error);
+        console.error('Speech recognition error:', event.error);
         setIsListening(false);
+        
+        if (event.error === 'network') {
+          alert('Erro de conexão: O reconhecimento de voz requer internet ativa. Verifique sua conexão.');
+        } else if (event.error === 'not-allowed') {
+          alert('Permissão de microfone negada. Por favor, permita o acesso ao microfone.');
+        } else if (event.error === 'no-speech') {
+          // No speech detected, just stop silently or maybe notify if needed
+          // alert('Nenhuma fala detectada.');
+        }
       };
       
       recognitionInstance.onend = () => {

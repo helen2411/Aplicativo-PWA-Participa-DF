@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Mic, Video, Image, FileText } from 'lucide-react';
-import logo from '../assets/participa-df-logo.svg';
+import { Mic, Video, Image, FileText, History, Info } from 'lucide-react';
 import { useAccessibility } from '../hooks/useAccessibility';
 
 export const Home = () => {
@@ -17,9 +16,6 @@ export const Home = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-center">
-        <img src={logo} alt="Participa DF" className="h-10" />
-      </div>
       <section className="text-center py-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Olá, cidadão! 👋</h2>
         <p className="text-gray-600">Como você gostaria de fazer sua manifestação hoje?</p>
@@ -80,46 +76,48 @@ export const Home = () => {
               if (isTalkBackEnabled) speak("Abrindo assistente virtual.");
               navigate('/ajuda');
             }}
-            className="block mt-2 font-bold underline hover:text-blue-900"
+            className="block mt-2 font-bold underline hover:text-blue-900 !border-none"
           >
             Ativar Assistente Virtual
           </button>
         </p>
       </div>
       
-      <button
-        onClick={() => {
-          if (isTalkBackEnabled) speak("Abrindo Minhas Manifestações");
-          navigate('/minhas-manifestacoes');
-        }}
-        className="w-full flex items-center justify-between p-5 bg-white rounded-2xl shadow-sm border border-gray-200 hover:border-blue-500 hover:shadow-md transition-colors"
-        aria-label="Acessar Minhas Manifestações e protocolos"
-      >
-        <div>
-          <h3 className="font-semibold text-gray-800">Minhas Manifestações</h3>
-          <p className="text-sm text-gray-600">Veja histórico e protocolos enviados</p>
-        </div>
-        <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-          <FileText className="w-7 h-7 text-gray-700" />
-        </div>
-      </button>
+      <div className="grid grid-cols-1 gap-4">
+        <button
+          onClick={() => {
+            if (isTalkBackEnabled) speak("Abrindo Minhas Manifestações");
+            navigate('/minhas-manifestacoes');
+          }}
+          className="w-full flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all group active:scale-95"
+          aria-label="Acessar Minhas Manifestações e protocolos"
+        >
+          <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-3 group-hover:bg-blue-100 transition-colors">
+            <History className="w-7 h-7 text-blue-600" />
+          </div>
+          <div className="text-center">
+            <h3 className="font-bold text-gray-800 text-lg">Minhas Manifestações</h3>
+            <p className="text-sm text-gray-600 mt-1">Veja histórico e protocolos enviados</p>
+          </div>
+        </button>
 
-      <button
-        onClick={() => {
-          if (isTalkBackEnabled) speak("Abrindo Acesso à Informação");
-          navigate('/acesso-informacao');
-        }}
-        className="w-full flex items-center justify-between p-5 bg-white rounded-2xl shadow-sm border border-gray-200 hover:border-blue-500 hover:shadow-md transition-colors"
-        aria-label="Acesso à Informação"
-      >
-        <div>
-          <h3 className="font-semibold text-gray-800">Acesso à Informação</h3>
-          <p className="text-sm text-gray-600">Canais de registro, prazos e portais oficiais</p>
-        </div>
-        <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-          <FileText className="w-7 h-7 text-gray-700" />
-        </div>
-      </button>
+        <button
+          onClick={() => {
+            if (isTalkBackEnabled) speak("Abrindo Acesso à Informação");
+            navigate('/acesso-informacao');
+          }}
+          className="w-full flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border border-gray-200 hover:border-teal-500 hover:shadow-md transition-all group active:scale-95"
+          aria-label="Acesso à Informação"
+        >
+          <div className="w-14 h-14 bg-teal-50 rounded-full flex items-center justify-center mb-3 group-hover:bg-teal-100 transition-colors">
+            <Info className="w-7 h-7 text-teal-600" />
+          </div>
+          <div className="text-center">
+            <h3 className="font-bold text-gray-800 text-lg">Acesso à Informação</h3>
+            <p className="text-sm text-gray-600 mt-1">Canais de registro, prazos e portais oficiais</p>
+          </div>
+        </button>
+      </div>
     </div>
   );
 };

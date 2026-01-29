@@ -16,9 +16,9 @@ export const AccessInfo = () => {
       <button
         onClick={() => {
           if (isTalkBackEnabled) speak('Voltando para a tela inicial');
-          navigate('/');
+          navigate('/home');
         }}
-        className="flex items-center text-gray-600 hover:text-primary transition-colors"
+        className="flex items-center text-gray-600 hover:text-primary transition-colors !border-none no-border border-0 outline-none"
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Voltar
@@ -59,9 +59,9 @@ export const AccessInfo = () => {
                   'Abrindo Participa DF, acesso à informação'
                 )
               }
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:border-primary hover:text-primary transition-colors flex items-center gap-1"
-            >
-              Acessar <ExternalLink className="w-4 h-4" />
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-blue-800 hover:border-primary hover:text-primary transition-colors flex items-center gap-1"
+        >
+          Acessar <ExternalLink className="w-4 h-4" />
             </button>
           </div>
 
@@ -82,7 +82,7 @@ export const AccessInfo = () => {
                   'Abrindo endereços e horários das ouvidorias'
                 )
               }
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:border-primary hover:text-primary transition-colors flex items-center gap-1"
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-[#1351B4] hover:border-primary hover:text-primary transition-colors flex items-center gap-1"
             >
               Endereços <ExternalLink className="w-4 h-4" />
             </button>
@@ -97,13 +97,13 @@ export const AccessInfo = () => {
             onClick={() =>
               openExternal('https://www.transparencia.df.gov.br', 'Abrindo Portal da Transparência')
             }
-            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left hover:border-primary hover:shadow-sm transition-colors"
+            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left text-blue-800 hover:border-primary hover:shadow-sm transition-colors"
           >
             Portal da Transparência do Distrito Federal
           </button>
           <button
             onClick={() => openExternal('https://www.df.gov.br', 'Abrindo Portal do GDF')}
-            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left hover:border-primary hover:shadow-sm transition-colors"
+            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left text-[#1351B4] hover:border-primary hover:shadow-sm transition-colors"
           >
             Portal do GDF
           </button>
@@ -111,7 +111,7 @@ export const AccessInfo = () => {
             onClick={() =>
               openExternal('https://www.dados.df.gov.br', 'Abrindo Portal de Dados Abertos')
             }
-            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left hover:border-primary hover:shadow-sm transition-colors"
+            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left text-[#1351B4] hover:border-primary hover:shadow-sm transition-colors"
           >
             Portal de Dados Abertos
           </button>
@@ -122,7 +122,7 @@ export const AccessInfo = () => {
                 'Abrindo lista de órgãos e entidades'
               )
             }
-            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left hover:border-primary hover:shadow-sm transition-colors"
+            className="w-full p-4 bg-white rounded-2xl border border-gray-200 text-left text-blue-800 hover:border-primary hover:shadow-sm transition-colors"
           >
             Sites dos órgãos e entidades do GDF
           </button>
